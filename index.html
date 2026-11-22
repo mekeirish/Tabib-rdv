@@ -1,0 +1,2677 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no,viewport-fit=cover">
+    <title>Tabib rdv</title>
+    <script src="https://cdn.tailwindcss.com">
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#059669">
+    <style>
+        /* ===== FONCTIONNEL : conservé pour la logique ===== */
+        .screen {
+            display: none;
+        }
+        .screen.active {
+            display: block;
+        }
+        .internal-modal {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: white;
+            border-radius: 32px 32px 0 0;
+            box-shadow: 0 -20px 50px rgba(0, 0, 0, 0.15);
+            padding: 24px 20px 30px;
+            z-index: 2000;
+            transform: translateY(100%);
+            transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+        }
+        .internal-modal.modal-show {
+            transform: translateY(0);
+        }
+        .admin-content {
+            display: none;
+            padding: 16px 18px;
+            border-top: 1px solid #f1f5f9;
+        }
+        .admin-content.open {
+            display: block;
+        }
+        #notificationBar.visible {
+            opacity: 1;
+            max-height: 48px;
+            padding: 8px 0;
+        }
+        #patientNavbar .nav-item.active-nav {
+            color: #059669;
+        }
+        .rdv-status.pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        .rdv-status.valid {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        /* ===== CALENDRIER : classes fonctionnelles conservées ===== */
+        .available {
+            background: #ecfdf5;
+            color: #059669;
+            cursor: pointer;
+        }
+        .available:hover {
+            background: #d1fae5;
+        }
+        .is-busy {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        .is-full {
+            background: #f1f5f9;
+            color: #94a3b8;
+            cursor: default;
+        }
+        .is-blocked {
+            background: #fee2e2;
+            color: #991b1b;
+            cursor: default;
+        }
+        .past {
+            background: #f8fafc !important;
+            color: #cbd5e1 !important;
+            cursor: default !important;
+            opacity: 0.6;
+        }
+        /* ===== GLOBAL ===== */
+        * {
+            -webkit-tap-highlight-color: transparent;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #f8fafc;
+            color: #0f172a;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+        }
+        input,
+        textarea,
+        select {
+            -webkit-user-select: text;
+            user-select: text;
+        }
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 999px;
+        }
+        .bottom-sheet-handle {
+            width: 40px;
+            height: 4px;
+            background: #e2e8f0;
+            border-radius: 999px;
+            margin: 0 auto 16px;
+        }
+        .no-select {
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        /* ===== OVERRIDES TAILWIND pour conserver l'intégrité ===== */
+        .btn-action-sm {
+            padding: 6px 14px;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border: none;
+            color: white;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .btn-action-sm:active {
+            transform: scale(0.95);
+        }
+        .bg-success {
+            background: #059669;
+        }
+        .bg-danger {
+            background: #dc2626;
+        }
+        .bg-secondary {
+            background: #3b82f6;
+        }
+        .bg-warning {
+            background: #f59e0b;
+            color: #000;
+        }
+        .bg-gray {
+            background: #6b7280;
+            color: #fff;
+        }
+        .rdv-card {
+            background: #f8fafc;
+            padding: 14px 16px;
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            margin-bottom: 10px;
+            transition: 0.2s;
+        }
+        .rdv-card:hover {
+            border-color: #10b981;
+        }
+        .rdv-status {
+            padding: 2px 10px;
+            border-radius: 999px;
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        .badge-count {
+            background: #059669;
+            color: #fff;
+            padding: 2px 10px;
+            border-radius: 999px;
+            font-weight: 700;
+            font-size: 0.7rem;
+            min-width: 24px;
+            text-align: center;
+            display: inline-block;
+        }
+        .dot-notif {
+            height: 10px;
+            width: 10px;
+            background-color: #ef4444;
+            border-radius: 999px;
+            display: inline-block;
+            margin-right: 6px;
+            box-shadow: 0 0 0 2px #fff;
+        }
+        .text-success {
+            color: #059669;
+        }
+        .text-warning {
+            color: #f59e0b;
+        }
+        .text-muted {
+            color: #94a3b8;
+        }
+        .btn-delete-user {
+            background: transparent;
+            border: none;
+            color: #94a3b8;
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 0 4px;
+            transition: 0.2s;
+        }
+        .btn-delete-user:hover {
+            color: #dc2626;
+        }
+        .spec-card i {
+            color: #059669;
+        }
+        /* ===== PRINT ===== */
+        #printArea {
+            display: none;
+        }
+        @media print {
+            body>*:not(#printArea) {
+                display: none !important;
+            }
+            #printArea {
+                display: block !important;
+                color: #000;
+                padding: 20px;
+            }
+            #printArea table,
+            #printArea th,
+            #printArea td {
+                border: 1px solid #000;
+                background: #fff !important;
+            }
+        }
+/* ===== THÈME PREMIUM ===== */
+:root {
+    --brand-50: #ecfdf5;
+    --brand-100: #d1fae5;
+    --brand-500: #10b981;
+    --brand-600: #059669;
+    --brand-700: #047857;
+    --ink: #0f172a;
+    --muted: #64748b;
+    --line: #e2e8f0;
+    --radius: 20px;
+    --shadow-sm: 0 1px 2px rgba(15, 23, 42, .04), 0 2px 8px rgba(15, 23, 42, .04);
+    --shadow-md: 0 4px 12px rgba(15, 23, 42, .06), 0 12px 32px rgba(15, 23, 42, .08);
+    --shadow-brand: 0 8px 24px rgba(5, 150, 105, .28);
+}
+
+body {
+    background:
+        radial-gradient(1100px 480px at 95% -10%, rgba(16, 185, 129, .12), transparent 60%),
+        radial-gradient(900px 420px at -10% 8%, rgba(59, 130, 246, .08), transparent 60%),
+        #f6f8fb;
+    letter-spacing: -.005em;
+}
+
+body .screen {
+    background: transparent;
+}
+
+.screen.active {
+    animation: screenIn .4s cubic-bezier(.2, .7, .2, 1) both;
+}
+
+@keyframes screenIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .screen.active { animation: none; }
+}
+
+/* Header */
+body > header.sticky {
+    background: rgba(255, 255, 255, .78);
+    -webkit-backdrop-filter: saturate(180%) blur(18px);
+    backdrop-filter: saturate(180%) blur(18px);
+    border-bottom: 1px solid rgba(226, 232, 240, .7);
+    box-shadow: 0 4px 24px rgba(15, 23, 42, .04);
+}
+
+.brand-mark {
+    width: 34px;
+    height: 34px;
+    border-radius: 11px;
+    display: grid;
+    place-items: center;
+    color: #fff;
+    font-size: .95rem;
+    margin-right: 10px;
+    background: linear-gradient(135deg, #10b981, #047857);
+    box-shadow: var(--shadow-brand);
+}
+
+.brand-name {
+    font-weight: 800;
+    letter-spacing: .14em;
+    color: #065f46;
+    font-size: 1.15rem;
+}
+
+.brand-name em {
+    font-style: normal;
+    font-size: .6rem;
+    letter-spacing: .2em;
+    color: #34d399;
+    margin-left: 6px;
+    font-weight: 600;
+    vertical-align: super;
+}
+
+/* Toast */
+body #notificationBar {
+    background: linear-gradient(90deg, #047857, #059669);
+    font-size: .8rem;
+    letter-spacing: .01em;
+    box-shadow: 0 6px 20px rgba(5, 150, 105, .35);
+}
+
+/* Hero */
+.hero {
+    position: relative;
+    overflow: hidden;
+    border-radius: 28px;
+    padding: 22px 20px 18px;
+    color: #fff;
+    background: linear-gradient(135deg, #047857 0%, #059669 45%, #0d9488 100%);
+    box-shadow: var(--shadow-brand);
+}
+
+.hero::before,
+.hero::after {
+    content: "";
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, .09);
+    pointer-events: none;
+}
+
+.hero::before {
+    width: 190px;
+    height: 190px;
+    top: -70px;
+    right: -50px;
+}
+
+.hero::after {
+    width: 120px;
+    height: 120px;
+    bottom: -50px;
+    left: -30px;
+}
+
+.hero > * {
+    position: relative;
+    z-index: 1;
+}
+
+.hero-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: .68rem;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    padding: 5px 11px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .16);
+}
+
+.hero h1 {
+    font-size: 1.55rem;
+    font-weight: 800;
+    letter-spacing: -.02em;
+    line-height: 1.15;
+    margin: 12px 0 0;
+}
+
+.search-box {
+    margin-top: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 48px;
+    padding: 0 14px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, .97);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, .12);
+}
+
+.search-box i {
+    color: #94a3b8;
+}
+
+.search-box input {
+    flex: 1;
+    height: 100%;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    font-size: .9rem;
+    color: var(--ink);
+}
+
+.hero-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+.hero-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: .7rem;
+    font-weight: 600;
+    padding: 5px 11px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .16);
+}
+
+.section-title {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin: 22px 4px 12px;
+}
+
+.section-title h2 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: -.01em;
+    color: var(--ink);
+}
+
+/* Spécialités */
+.spec-tile {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 18px 14px 16px;
+    background: #fff;
+    border: 1px solid rgba(226, 232, 240, .8);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+    transition: transform .2s, box-shadow .2s, border-color .2s;
+}
+
+.spec-tile:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    border-color: #a7f3d0;
+}
+
+.spec-tile:active {
+    transform: scale(.97);
+}
+
+.spec-icon {
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
+    display: grid;
+    place-items: center;
+    font-size: 1.2rem;
+    color: #fff;
+    background: linear-gradient(135deg, var(--c1), var(--c2));
+    box-shadow: 0 8px 16px -6px var(--c2);
+}
+
+.spec-name {
+    font-weight: 700;
+    font-size: .9rem;
+    color: var(--ink);
+    line-height: 1.2;
+}
+
+.spec-count {
+    font-size: .7rem;
+    color: var(--muted);
+    margin-top: 2px;
+}
+
+.spec-arrow {
+    position: absolute;
+    top: 16px;
+    right: 14px;
+    font-size: .75rem;
+    color: #cbd5e1;
+    transition: transform .2s, color .2s;
+}
+
+.spec-tile:hover .spec-arrow {
+    color: var(--brand-600);
+    transform: translateX(3px);
+}
+
+/* Médecins */
+.back-btn {
+    grid-column: 1 / -1;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    width: fit-content;
+    padding: 9px 16px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: #fff;
+    color: var(--muted);
+    font-size: .8rem;
+    font-weight: 600;
+    box-shadow: var(--shadow-sm);
+    transition: all .15s;
+}
+
+.back-btn:active {
+    transform: scale(.95);
+}
+
+.doc-card {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px;
+    background: #fff;
+    border: 1px solid rgba(226, 232, 240, .8);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+    transition: transform .2s, box-shadow .2s, border-color .2s;
+}
+
+.doc-card:hover {
+    box-shadow: var(--shadow-md);
+    border-color: #a7f3d0;
+}
+
+.doc-card:active {
+    transform: scale(.98);
+}
+
+.avatar {
+    width: 52px;
+    height: 52px;
+    flex-shrink: 0;
+    border-radius: 16px;
+    display: grid;
+    place-items: center;
+    font-weight: 800;
+    font-size: 1.05rem;
+    color: #fff;
+    background: linear-gradient(135deg, #059669, #0d9488);
+    box-shadow: 0 8px 16px -8px rgba(5, 150, 105, .7);
+}
+
+.doc-body {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+}
+
+.doc-name {
+    font-weight: 700;
+    font-size: .95rem;
+    color: var(--ink);
+}
+
+.doc-title {
+    font-size: .75rem;
+    color: var(--muted);
+}
+
+.doc-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+    font-size: .7rem;
+    color: #94a3b8;
+}
+
+.chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 7px;
+}
+
+.chip {
+    font-size: .65rem;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--brand-50);
+    color: var(--brand-700);
+}
+
+.doc-cta {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border-radius: 13px;
+    display: grid;
+    place-items: center;
+    background: var(--brand-50);
+    color: var(--brand-600);
+    transition: all .15s;
+}
+
+.doc-card:hover .doc-cta {
+    background: var(--brand-600);
+    color: #fff;
+}
+
+.cal-doc {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.empty-state {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 36px 16px;
+    color: var(--muted);
+    font-size: .85rem;
+}
+
+.empty-state i {
+    display: block;
+    font-size: 1.8rem;
+    margin-bottom: 10px;
+    color: #cbd5e1;
+}
+
+/* Calendrier */
+#calPatientContainer table,
+#docCalContainer table {
+    border-collapse: separate;
+    border-spacing: 4px;
+}
+
+table td[class*="rounded-lg"] {
+    height: 40px;
+    border-radius: 12px;
+    font-weight: 600;
+    transition: transform .12s, box-shadow .12s, background .15s;
+}
+
+td.available:hover {
+    background: #d1fae5;
+    box-shadow: inset 0 0 0 1.5px #6ee7b7;
+}
+
+td.available:active,
+td.is-busy:active {
+    transform: scale(.94);
+}
+
+.cal-legend {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px 14px;
+    margin-top: 14px;
+    font-size: .68rem;
+    color: var(--muted);
+}
+
+.cal-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.cal-legend i {
+    width: 12px;
+    height: 12px;
+    border-radius: 4px;
+    display: inline-block;
+}
+
+.cal-legend .ok { background: #d1fae5; box-shadow: inset 0 0 0 1px #6ee7b7; }
+.cal-legend .busy { background: #fef3c7; box-shadow: inset 0 0 0 1px #fcd34d; }
+.cal-legend .full { background: #f1f5f9; box-shadow: inset 0 0 0 1px #cbd5e1; }
+.cal-legend .blk { background: #fee2e2; box-shadow: inset 0 0 0 1px #fca5a5; }
+
+/* Cartes génériques (espaces médecin / admin / patient) */
+body .bg-white.rounded-2xl.border {
+    border-color: rgba(226, 232, 240, .8);
+    border-radius: 22px;
+    box-shadow: var(--shadow-sm);
+}
+
+.rdv-card {
+    background: #fff;
+    border-left: 4px solid #cbd5e1;
+    box-shadow: var(--shadow-sm);
+}
+
+.rdv-card:has(.rdv-status.pending) { border-left-color: #f59e0b; }
+.rdv-card:has(.rdv-status.valid) { border-left-color: #10b981; }
+
+/* Modales */
+.internal-modal {
+    max-height: 88vh;
+    overflow-y: auto;
+    padding-bottom: calc(30px + env(safe-area-inset-bottom));
+}
+
+.internal-modal.modal-show {
+    box-shadow: 0 -20px 50px rgba(0, 0, 0, .15), 0 0 0 100vmax rgba(15, 23, 42, .38);
+}
+
+/* Pavé numérique */
+.numpad .num-btn {
+    height: 64px;
+    padding: 0;
+    transition: transform .1s, background .15s;
+}
+
+.numpad .num-btn:active {
+    transform: scale(.92);
+}
+
+/* Barre de navigation patient */
+body #patientNavbar {
+    background: rgba(255, 255, 255, .85);
+    -webkit-backdrop-filter: saturate(180%) blur(18px);
+    backdrop-filter: saturate(180%) blur(18px);
+    padding-bottom: env(safe-area-inset-bottom);
+}
+/* ===== BARRE SUPÉRIEURE ===== */
+body > header.app-header {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    column-gap: 12px;
+    height: 64px;
+    padding: 0 max(16px, calc((100% - 512px) / 2));
+}
+
+#authLeft,
+#backBtnArea {
+    grid-column: 1;
+    grid-row: 1;
+    justify-self: start;
+}
+
+#navBrand {
+    grid-column: 2;
+    grid-row: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+}
+
+#authRight {
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
+}
+
+.hbtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 40px;
+    min-width: 40px;
+    padding: 0 16px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: #fff;
+    color: #334155;
+    font-size: .82rem;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    box-shadow: var(--shadow-sm);
+    transition: transform .12s, border-color .15s, color .15s, box-shadow .15s;
+}
+
+.hbtn i {
+    font-size: .85rem;
+}
+
+.hbtn:hover {
+    border-color: #6ee7b7;
+    color: var(--brand-700);
+}
+
+.hbtn:active {
+    transform: scale(.94);
+}
+
+.hbtn:focus-visible {
+    outline: 2px solid var(--brand-500);
+    outline-offset: 2px;
+}
+
+.hbtn-primary {
+    background: linear-gradient(135deg, #10b981, #047857);
+    border-color: transparent;
+    color: #fff;
+    box-shadow: var(--shadow-brand);
+}
+
+.hbtn-primary:hover {
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 10px 26px rgba(5, 150, 105, .38);
+}
+
+.hbtn-icon {
+    padding: 0;
+    width: 40px;
+}
+
+/* PC / tablette : deux boutons de même largeur */
+@media (min-width: 560px) {
+    .hbtn:not(.hbtn-icon) {
+        min-width: 132px;
+    }
+}
+
+/* Téléphone : icônes seules, même taille partout */
+@media (max-width: 559px) {
+    body > header.app-header {
+        column-gap: 8px;
+    }
+
+    .hbtn {
+        width: 40px;
+        padding: 0;
+    }
+
+    .hbtn .lbl {
+        display: none;
+    }
+
+    .hbtn i {
+        font-size: .95rem;
+    }
+
+    .brand-mark {
+        width: 30px;
+        height: 30px;
+        margin-right: 8px;
+        font-size: .85rem;
+    }
+
+    .brand-name {
+        font-size: 1rem;
+    }
+
+    .brand-name em {
+        display: none;
+    }
+}
+    </style>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<meta property="og:title" content="Tabib rdv">
+<meta name="twitter:title" content="Tabib rdv">
+<meta name="application-name" content="Tabib rdv">
+<meta name="apple-mobile-web-app-title" content="Tabib rdv">
+<meta name="description" content="Rendez-vous médical">
+<meta property="og:description" content="Rendez-vous médical">
+<meta name="twitter:description" content="Rendez-vous médical">
+<link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="./icon.png">
+<meta property="og:image" content="https://mekeirish.github.io/Tabib-rdv/icon.png">
+<meta name="twitter:image" content="https://mekeirish.github.io/Tabib-rdv/icon.png">
+<meta name="twitter:card" content="summary">
+<meta property="og:url" content="https://mekeirish.github.io/Tabib-rdv/">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="./icon.png">
+<link rel="apple-touch-startup-image" media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="./splash-1320x2868.png">
+<link rel="apple-touch-startup-image" media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="./splash-1206x2622.png">
+<link rel="apple-touch-startup-image" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="./splash-1290x2796.png">
+<link rel="apple-touch-startup-image" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="./splash-1179x2556.png">
+<link rel="apple-touch-startup-image" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="./splash-1284x2778.png">
+<link rel="apple-touch-startup-image" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="./splash-1170x2532.png">
+<link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="./splash-1242x2688.png">
+<link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="./splash-828x1792.png">
+<link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="./splash-1125x2436.png">
+<link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="./splash-1242x2208.png">
+<link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="./splash-750x1334.png">
+<link rel="apple-touch-startup-image" media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="./splash-640x1136.png">
+</head>
+<body oncontextmenu="return false;">
+
+    <!-- ===== NOTIFICATION ===== -->
+    <div id="notificationBar" class="fixed top-0 left-0 right-0 z-[2100] bg-emerald-600 text-white text-center text-xs font-semibold opacity-0 max-h-0 overflow-hidden transition-all duration-400 flex items-center justify-center pointer-events-none" style="transition: opacity 0.4s ease, max-height 0.4s ease, padding 0.4s ease;">
+        <span>Message</span>
+    </div>
+
+    <!-- ===== HEADER ===== -->
+<header class="app-header h-[64px] border-b border-slate-200/60 sticky top-0 z-[1000] shadow-sm">
+    <div id="authLeft">
+        <button class="hbtn" onclick="App.showScreen('pageSignup')" aria-label="Inscription" title="Inscription">
+            <i class="fas fa-user-plus"></i><span class="lbl">Inscription</span>
+        </button>
+    </div>
+    <div id="backBtnArea" style="display:none;">
+        <button onclick="App.goBack()" class="hbtn hbtn-icon" aria-label="Retour" title="Retour">
+            <i class="fas fa-arrow-left"></i>
+        </button>
+    </div>
+    <div id="navBrand">
+        <span class="brand-mark"><i class="fas fa-heart-pulse"></i></span>
+        <span class="brand-name">TABIB<em>PRO</em></span>
+    </div>
+    <div id="authRight">
+        <button class="hbtn hbtn-primary" onclick="App.openLogin()" aria-label="Connexion" title="Connexion">
+            <i class="fas fa-right-to-bracket"></i><span class="lbl">Connexion</span>
+        </button>
+    </div>
+</header>
+
+    <div id="printArea"></div>
+
+    <!-- ============================================================ -->
+    <!-- PAGE PATIENTS (accueil) -->
+    <!-- ============================================================ -->
+    <div id="pagePatients" class="screen active flex-1 overflow-y-auto px-4 pt-6 pb-24 bg-slate-50/60">
+        <div class="max-w-lg mx-auto">
+<div class="mb-4">
+    <div class="hero">
+        <div class="hero-eyebrow"><i class="fas fa-shield-heart"></i> Rendez-vous médicaux en ligne</div>
+        <h1>Le bon médecin,<br>réservé en un instant.</h1>
+        <div class="search-box">
+            <i class="fas fa-magnifying-glass"></i>
+            <input type="search" id="specSearch" placeholder="Rechercher une spécialité…" autocomplete="off" oninput="App.filterSpecs(this.value)">
+        </div>
+        <div id="heroStats" class="hero-stats"></div>
+    </div>
+    <div class="section-title">
+        <h2 id="specTitle">Spécialités</h2>
+    </div>
+</div>
+            <div id="specialtyGrid" class="grid grid-cols-2 gap-4"></div>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- PAGE LOGIN -->
+    <!-- ============================================================ -->
+    <div id="pageLogin" class="screen flex-1 overflow-y-auto px-4 pt-4 pb-8 bg-slate-50/60">
+        <div class="max-w-sm mx-auto">
+            <button onclick="App.goBack()" class="text-slate-500 hover:text-emerald-600 transition-colors text-sm font-medium mb-6 flex items-center gap-2">
+                <i class="fas fa-arrow-left"></i> Retour
+            </button>
+            <div class="text-center mb-8">
+                <h2 class="text-2xl font-bold text-slate-800">Identification</h2>
+                <p class="text-sm text-slate-500 mt-1">Entrez votre code sécurisé</p>
+            </div>
+            <div id="loginDisplay" class="text-center text-3xl font-bold tracking-[0.5em] h-16 bg-white rounded-2xl border border-slate-200 shadow-sm flex items-center justify-center text-emerald-600 mb-6"></div>
+            <div class="numpad grid grid-cols-3 gap-4 max-w-[280px] mx-auto" id="numpadContainer"></div>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- PAGE MÉDECIN (dashboard) -->
+    <!-- ============================================================ -->
+    <div id="pageDocSpace" class="screen flex-1 overflow-y-auto px-4 pt-4 pb-24 bg-slate-50/60">
+        <div class="max-w-lg mx-auto">
+            <div class="flex items-center gap-3 mb-5">
+                <div class="w-12 h-12 rounded-2xl bg-emerald-100 flex items-center justify-center text-emerald-600 text-xl">
+                    <i class="fas fa-user-md"></i>
+                </div>
+                <div>
+                    <h2 id="docSpaceName" class="text-xl font-bold text-slate-800"></h2>
+                    <p class="text-xs text-slate-400">Tableau de bord</p>
+                </div>
+            </div>
+
+            <!-- KPI -->
+            <div class="grid grid-cols-2 gap-3 mb-5">
+                <div class="bg-white rounded-2xl border border-slate-200/70 shadow-sm p-4">
+                    <div class="flex items-center gap-2 text-slate-500 text-xs font-medium mb-1">
+                        <i class="fas fa-calendar-day text-emerald-500"></i> Aujourd'hui
+                    </div>
+                    <div class="text-2xl font-bold text-slate-800" id="todayCount">0</div>
+                    <div class="text-[10px] text-slate-400">rendez-vous</div>
+                </div>
+                <div class="bg-white rounded-2xl border border-slate-200/70 shadow-sm p-4">
+                    <div class="flex items-center gap-2 text-slate-500 text-xs font-medium mb-1">
+                        <i class="fas fa-clock text-amber-500"></i> En attente
+                    </div>
+                    <div class="text-2xl font-bold text-slate-800" id="pendingCount">0</div>
+                    <div class="text-[10px] text-slate-400">demandes</div>
+                </div>
+            </div>
+
+            <!-- Demandes RDV -->
+            <div class="bg-white rounded-2xl border border-slate-200/70 shadow-sm overflow-hidden mb-5">
+                <div class="flex items-center justify-between px-5 py-3.5 cursor-pointer hover:bg-slate-50 transition-colors" onclick="App.renderDocApps(); App.toggleSect(this)">
+                    <div class="flex items-center gap-2.5">
+                        <i class="fas fa-bell text-emerald-500"></i>
+                        <span class="font-semibold text-sm text-slate-700">Demandes de RDV</span>
+                        <span id="docPendingBadge" class="badge-count" style="display:none;">0</span>
+                        <span id="docNotifDot" style="display:none;" class="dot-notif"></span>
+                    </div>
+                    <i class="fas fa-chevron-down text-slate-400 text-xs"></i>
+                </div>
+                <div class="admin-content" id="docAppointmentsList"></div>
+            </div>
+
+            <!-- Calendrier -->
+            <div class="bg-white rounded-2xl border border-slate-200/70 shadow-sm overflow-hidden mb-4">
+                <div class="px-4 pt-4 pb-1">
+                    <span class="text-xs font-semibold text-slate-500"><i class="far fa-calendar-alt mr-1.5"></i>Planning</span>
+                </div>
+                <div id="docCalContainer" class="px-2 pb-2"></div>
+            </div>
+
+            <!-- Légende -->
+            <div class="flex flex-wrap items-center justify-center gap-3 text-[10px] text-slate-500 bg-white/80 rounded-full px-4 py-2 border border-slate-200/60 shadow-sm mb-4">
+                <span><span class="inline-block w-3 h-3 rounded-full bg-emerald-100 border border-emerald-200 align-middle mr-1"></span>Dispo</span>
+                <span><span class="inline-block w-3 h-3 rounded-full bg-amber-100 border border-amber-200 align-middle mr-1"></span>Occupé</span>
+                <span><span class="inline-block w-3 h-3 rounded-full bg-red-100 border border-red-200 align-middle mr-1"></span>Bloqué</span>
+                <span><span class="inline-block w-3 h-3 rounded-full bg-slate-100 border border-slate-200 align-middle mr-1"></span>Plein</span>
+                <span id="blockModeHint" class="font-medium text-emerald-600">(Mode normal)</span>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex flex-wrap gap-2 mb-4">
+                <button id="btnToggleHours" class="flex-1 min-w-[100px] bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-all active:scale-95 shadow-sm" onclick="App.toggleHourMode()">
+                    <i class="fas fa-lock mr-1.5"></i> Mode blocage
+                </button>
+                <button class="flex-1 min-w-[100px] bg-slate-600 hover:bg-slate-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-all active:scale-95 shadow-sm" onclick="App.printDailyReport()">
+                    <i class="fas fa-print mr-1.5"></i> Liste
+                </button>
+                <button class="flex-1 min-w-[100px] bg-slate-600 hover:bg-slate-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-all active:scale-95 shadow-sm" onclick="App.openHistory()">
+                    <i class="fas fa-history mr-1.5"></i> Histo
+                </button>
+            </div>
+
+            <button class="w-full bg-red-500 hover:bg-red-600 text-white text-sm font-semibold px-4 py-3 rounded-xl transition-all active:scale-95 shadow-sm" onclick="App.logout()">
+                <i class="fas fa-sign-out-alt mr-2"></i> Quitter
+            </button>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- PAGE HISTORIQUE -->
+    <!-- ============================================================ -->
+    <div id="pageHistory" class="screen flex-1 overflow-y-auto px-4 pt-4 pb-24 bg-slate-50/60">
+        <div class="max-w-lg mx-auto">
+            <div class="flex items-center justify-between mb-5">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800">📋 Historique</h2>
+                    <p class="text-xs text-slate-400" id="historyCount">0 rendez-vous</p>
+                </div>
+                <div class="flex gap-2">
+                    <button class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 hover:bg-emerald-200 transition-all active:scale-95 flex items-center justify-center" onclick="App.exportHistory()" title="Exporter CSV">
+                        <i class="fas fa-file-export text-sm"></i>
+                    </button>
+                    <button class="w-10 h-10 rounded-xl bg-red-100 text-red-500 hover:bg-red-200 transition-all active:scale-95 flex items-center justify-center" onclick="App.clearHistory()" title="Vider">
+                        <i class="fas fa-trash-sweep text-sm"></i>
+                    </button>
+                </div>
+            </div>
+            <div id="historyList"></div>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- PAGE ADMIN -->
+    <!-- ============================================================ -->
+    <div id="pageAdmin" class="screen flex-1 overflow-y-auto px-4 pt-4 pb-24 bg-slate-50/60">
+        <div class="max-w-lg mx-auto">
+            <div class="flex items-center gap-3 mb-5">
+                <div class="w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center text-amber-600 text-xl">
+                    <i class="fas fa-shield-alt"></i>
+                </div>
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800">Panel Admin</h2>
+                    <p class="text-xs text-slate-400">Gestion complète</p>
+                </div>
+            </div>
+
+            <!-- ADMINS -->
+            <div class="bg-white rounded-2xl border border-slate-200/70 shadow-sm overflow-hidden mb-4">
+                <div class="flex items-center justify-between px-5 py-3.5 cursor-pointer hover:bg-slate-50 transition-colors" onclick="App.renderAdminsList(); App.toggleSect(this)">
+                    <div class="flex items-center gap-2.5">
+                        <i class="fas fa-user-shield text-emerald-500"></i>
+                        <span class="font-semibold text-sm text-slate-700">Admins</span>
+                    </div>
+                    <i class="fas fa-chevron-down text-slate-400 text-xs"></i>
+                </div>
+                <div class="admin-content" id="adminsListContainer">
+                    <div id="adminsList"></div>
+                    <div class="flex flex-col sm:flex-row gap-3 mt-3">
+                        <input type="text" id="newAdminName" placeholder="Nom de l'admin" class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all">
+                        <input type="password" id="newAdminCode" placeholder="Code (4)" maxlength="4" class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all">
+                        <button class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-all active:scale-95 shadow-sm whitespace-nowrap" onclick="App.addAdmin()">Ajouter</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- INSCRIPTIONS EN ATTENTE -->
+            <div class="bg-white rounded-2xl border border-slate-200/70 shadow-sm overflow-hidden mb-4">
+                <div class="flex items-center justify-between px-5 py-3.5 cursor-pointer hover:bg-slate-50 transition-colors" onclick="App.renderPending(); App.toggleSect(this)">
+                    <div class="flex items-center gap-2.5">
+                        <i class="fas fa-user-plus text-emerald-500"></i>
+                        <span class="font-semibold text-sm text-slate-700">Inscriptions en attente</span>
+                        <span id="notifDot" style="display:none;" class="dot-notif"></span>
+                    </div>
+                    <i class="fas fa-chevron-down text-slate-400 text-xs"></i>
+                </div>
+                <div class="admin-content" id="admPendingList"></div>
+            </div>
+
+            <!-- LISTE UTILISATEURS -->
+            <div class="bg-white rounded-2xl border border-slate-200/70 shadow-sm overflow-hidden mb-4">
+                <div class="flex items-center justify-between px-5 py-3.5 cursor-pointer hover:bg-slate-50 transition-colors" onclick="App.renderUsers(); App.toggleSect(this)">
+                    <div class="flex items-center gap-2.5">
+                        <i class="fas fa-users text-emerald-500"></i>
+                        <span class="font-semibold text-sm text-slate-700">Liste utilisateurs</span>
+                    </div>
+                    <i class="fas fa-chevron-down text-slate-400 text-xs"></i>
+                </div>
+                <div class="admin-content" id="admUserList"></div>
+            </div>
+
+            <!-- AJOUTER SPÉCIALITÉ -->
+            <div class="bg-white rounded-2xl border border-slate-200/70 shadow-sm overflow-hidden mb-4">
+                <div class="flex items-center justify-between px-5 py-3.5 cursor-pointer hover:bg-slate-50 transition-colors" onclick="App.toggleSect(this)">
+                    <div class="flex items-center gap-2.5">
+                        <i class="fas fa-plus-circle text-emerald-500"></i>
+                        <span class="font-semibold text-sm text-slate-700">Ajouter spécialité</span>
+                    </div>
+                    <i class="fas fa-chevron-down text-slate-400 text-xs"></i>
+                </div>
+                <div class="admin-content">
+                    <div class="flex gap-3">
+                        <input type="text" id="admSpecInput" placeholder="Nom spécialité" class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all">
+                        <button class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-all active:scale-95 shadow-sm" onclick="App.addSpec()">Créer</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AJOUTER MÉDECIN -->
+            <div class="bg-white rounded-2xl border border-slate-200/70 shadow-sm overflow-hidden mb-4">
+                <div class="flex items-center justify-between px-5 py-3.5 cursor-pointer hover:bg-slate-50 transition-colors" onclick="App.updateSpecSel(); App.toggleSect(this)">
+                    <div class="flex items-center gap-2.5">
+                        <i class="fas fa-user-md text-emerald-500"></i>
+                        <span class="font-semibold text-sm text-slate-700">Ajouter médecin</span>
+                    </div>
+                    <i class="fas fa-chevron-down text-slate-400 text-xs"></i>
+                </div>
+                <div class="admin-content space-y-3">
+                    <select id="admSpecSelect" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all"></select>
+                    <input type="text" id="admDocName" placeholder="Nom Dr." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all">
+                    <input type="text" id="admDocTitle" placeholder="Titre / Grade" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all">
+                    <input type="email" id="admDocEmail" placeholder="Email" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all">
+                    <input type="tel" id="admDocTel" placeholder="Téléphone principal" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all">
+                    <input type="text" id="admDocSecTel" placeholder="Tél. secrétaire(s) (séparés par des virgules)" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all">
+                    <input type="text" id="admDocAddress" placeholder="Adresse du cabinet" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all">
+                    <input type="text" id="admDocSubSpecs" placeholder="Spécialités secondaires (séparées par des virgules)" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all">
+                    <input type="text" id="admDocServices" placeholder="Prestations / actes (séparés par des virgules)" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all">
+                    <input type="text" id="admDocCode" placeholder="Code connexion" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all">
+                    <input type="number" id="admDocDuration" placeholder="Validité (jours)" min="1" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all">
+                    <div class="flex items-center gap-4 mt-1">
+                        <span class="text-sm font-medium text-slate-600">Capacité</span>
+                        <span id="capDisplay" class="text-3xl font-bold text-emerald-600 min-w-[48px] text-center">3</span>
+                        <button class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium px-4 py-1.5 rounded-full transition-all active:scale-95" onclick="App.cycleCap('capDisplay')">Changer</button>
+                    </div>
+                    <button class="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-3 rounded-xl transition-all active:scale-95 shadow-sm mt-2" onclick="App.addDoc()">Valider</button>
+                </div>
+            </div>
+
+            <!-- GÉRER MÉDECINS -->
+            <div class="bg-white rounded-2xl border border-slate-200/70 shadow-sm overflow-hidden mb-4">
+                <div class="flex items-center justify-between px-5 py-3.5 cursor-pointer hover:bg-slate-50 transition-colors" onclick="App.renderAdmins(); App.toggleSect(this)">
+                    <div class="flex items-center gap-2.5">
+                        <i class="fas fa-trash-alt text-red-500"></i>
+                        <span class="font-semibold text-sm text-slate-700">Gérer médecins</span>
+                    </div>
+                    <i class="fas fa-chevron-down text-slate-400 text-xs"></i>
+                </div>
+                <div class="admin-content" id="admGlobalList"></div>
+            </div>
+
+            <button class="w-full bg-red-500 hover:bg-red-600 text-white text-sm font-semibold px-4 py-3 rounded-xl transition-all active:scale-95 shadow-sm" onclick="App.logout()">
+                <i class="fas fa-sign-out-alt mr-2"></i> Déconnexion
+            </button>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- MODALE ÉDITION MÉDECIN -->
+    <!-- ============================================================ -->
+    <div id="modalEditDoc" class="internal-modal">
+        <div class="bottom-sheet-handle"></div>
+        <h3 class="text-xl font-bold text-slate-800 mb-4">Modifier médecin</h3>
+        <div class="space-y-3">
+            <input type="text" id="editDocName" placeholder="Nom Dr." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all">
+            <input type="text" id="editDocTitle" placeholder="Titre / Grade" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all">
+            <input type="email" id="editDocEmail" placeholder="Email" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all">
+            <input type="tel" id="editDocTel" placeholder="Téléphone principal" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all">
+            <input type="text" id="editDocSecTel" placeholder="Tél. secrétaire(s) (séparés par des virgules)" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all">
+            <input type="text" id="editDocAddress" placeholder="Adresse du cabinet" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all">
+            <input type="text" id="editDocSubSpecs" placeholder="Spécialités secondaires (séparées par des virgules)" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all">
+            <input type="text" id="editDocServices" placeholder="Prestations / actes (séparés par des virgules)" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all">
+            <input type="text" id="editDocCode" placeholder="Code connexion" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all">
+            <input type="number" id="editDocDuration" placeholder="Validité (jours)" min="1" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all">
+            <div class="flex items-center gap-4 mt-1">
+                <span class="text-sm font-medium text-slate-600">Capacité</span>
+                <span id="editCapDisplay" class="text-3xl font-bold text-emerald-600 min-w-[48px] text-center">3</span>
+                <button class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium px-4 py-1.5 rounded-full transition-all active:scale-95" onclick="App.cycleCap('editCapDisplay')">Changer</button>
+            </div>
+            <button id="btnUpdateDoc" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-3 rounded-xl transition-all active:scale-95 shadow-sm mt-2">Mettre à jour</button>
+            <button class="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-semibold px-4 py-3 rounded-xl transition-all active:scale-95" onclick="App.closeModals()">Annuler</button>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- MODALE ÉDITION UTILISATEUR -->
+    <!-- ============================================================ -->
+    <div id="modalEditUser" class="internal-modal">
+        <div class="bottom-sheet-handle"></div>
+        <h3 class="text-xl font-bold text-slate-800 mb-4">Modifier utilisateur</h3>
+        <div class="space-y-3">
+            <input type="text" id="editUserName" placeholder="Nom complet" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all">
+            <input type="tel" id="editUserTel" placeholder="Téléphone" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all">
+            <input type="text" id="editUserCode" placeholder="Code (chiffres)" maxlength="8" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all">
+            <div class="flex gap-3 mt-2">
+                <button class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-3 rounded-xl transition-all active:scale-95 shadow-sm" onclick="App.saveUser()">Enregistrer</button>
+                <button class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-semibold px-4 py-3 rounded-xl transition-all active:scale-95" onclick="App.closeModals()">Fermer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- PAGE PATIENT SPACE -->
+    <!-- ============================================================ -->
+    <div id="pagePatientSpace" class="screen flex-1 overflow-y-auto px-4 pt-4 pb-24 bg-slate-50/60">
+        <div class="max-w-lg mx-auto">
+            <div class="flex items-center gap-3 mb-5">
+                <div class="w-12 h-12 rounded-2xl bg-emerald-100 flex items-center justify-center text-emerald-600 text-xl">
+                    <i class="fas fa-user"></i>
+                </div>
+                <div>
+                    <h2 id="patientWelcome" class="text-xl font-bold text-slate-800"></h2>
+                    <p class="text-xs text-slate-400">Mes rendez-vous</p>
+                </div>
+            </div>
+            <div id="patientAppointments" class="space-y-3"></div>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- PAGE CALENDRIER PATIENT -->
+    <!-- ============================================================ -->
+    <div id="pageCalPatient" class="screen flex-1 overflow-y-auto px-4 pt-4 pb-24 bg-slate-50/60">
+        <div class="max-w-lg mx-auto">
+            <button onclick="App.showScreen('pagePatients')" class="text-slate-500 hover:text-emerald-600 transition-colors text-sm font-medium mb-4 flex items-center gap-2">
+                <i class="fas fa-arrow-left"></i> Retour
+            </button>
+            <div id="calPatientInfo" class="bg-white rounded-2xl border border-slate-200/70 shadow-sm p-4 text-center mb-5">
+                <span class="text-lg font-semibold text-slate-800"></span>
+            </div>
+            <div class="bg-white rounded-2xl border border-slate-200/70 shadow-sm overflow-hidden">
+                <div id="calPatientContainer" class="px-2 pb-2"></div>
+            </div>
+<div class="cal-legend">
+    <span><i class="ok"></i>Disponible</span>
+    <span><i class="busy"></i>Partiellement réservé</span>
+    <span><i class="full"></i>Complet</span>
+    <span><i class="blk"></i>Indisponible</span>
+</div>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- PAGE INSCRIPTION -->
+    <!-- ============================================================ -->
+    <div id="pageSignup" class="screen flex-1 overflow-y-auto px-4 pt-4 pb-8 bg-slate-50/60">
+        <div class="max-w-sm mx-auto">
+            <button onclick="App.showScreen('pagePatients')" class="text-slate-500 hover:text-emerald-600 transition-colors text-sm font-medium mb-6 flex items-center gap-2">
+                <i class="fas fa-arrow-left"></i> Retour
+            </button>
+            <div class="text-center mb-6">
+                <h2 class="text-2xl font-bold text-slate-800">Inscription</h2>
+                <p class="text-sm text-slate-500 mt-1">Créez votre compte patient</p>
+            </div>
+            <div class="space-y-4">
+                <input type="text" id="regName" placeholder="Nom complet" class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all">
+                <input type="tel" id="regTel" placeholder="Téléphone" class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all">
+                <input type="password" id="regPass" placeholder="Code (8 chiffres)" maxlength="8" class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all">
+                <button class="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-3.5 rounded-xl transition-all active:scale-95 shadow-sm" onclick="App.handleSignup()">S'inscrire</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- MODALE DÉTAILS RDV (générique) -->
+    <!-- ============================================================ -->
+    <div id="modalDoc" class="internal-modal">
+        <div class="bottom-sheet-handle"></div>
+        <h3 id="modalDocTitle" class="text-xl font-bold text-slate-800 mb-3">Détails</h3>
+        <div id="docActionInfo" class="space-y-2"></div>
+        <div id="modalConfirmButtons" style="display:none;" class="flex gap-3 mt-5">
+            <button id="btnFinalConfirm" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-3 rounded-xl transition-all active:scale-95 shadow-sm">Oui</button>
+            <button class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-semibold px-4 py-3 rounded-xl transition-all active:scale-95" onclick="App.closeModals()">Non</button>
+        </div>
+        <button id="btnCloseModal" class="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-semibold px-4 py-3 rounded-xl transition-all active:scale-95 mt-3" onclick="App.closeModals()">Fermer</button>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- NAVIGATION PATIENT (mobile bottom bar) -->
+    <!-- ============================================================ -->
+    <div id="patientNavbar" class="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-lg border-t border-slate-200/60 flex justify-around items-center h-[72px] z-[1000] shadow-[0_-4px_20px_rgba(0,0,0,0.04)]" style="display:none;">
+        <div class="nav-item flex flex-col items-center justify-center flex-1 py-1 text-slate-400 transition-colors active:scale-95 cursor-pointer" onclick="App.showScreen('pagePatientSpace')">
+            <i class="fas fa-calendar-check text-lg"></i>
+            <span class="text-[10px] font-medium mt-0.5">Mes RDV</span>
+        </div>
+        <div class="nav-item flex flex-col items-center justify-center flex-1 py-1 text-slate-400 transition-colors active:scale-95 cursor-pointer" onclick="App.showScreen('pagePatients')">
+            <i class="fas fa-search text-lg"></i>
+            <span class="text-[10px] font-medium mt-0.5">Chercher</span>
+        </div>
+        <div class="nav-item flex flex-col items-center justify-center flex-1 py-1 text-slate-400 transition-colors active:scale-95 cursor-pointer text-red-500" onclick="App.logout()">
+            <i class="fas fa-sign-out-alt text-lg"></i>
+            <span class="text-[10px] font-medium mt-0.5">Quitter</span>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- JAVASCRIPT (inchangé, importé depuis le module) -->
+    <!-- ============================================================ -->
+    <script type="importmap">
+        {
+            "imports": {
+                "firebase/app": "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js",
+                "firebase/database": "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, update, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+        // ===== Firebase =====
+        const firebaseConfig = {
+            apiKey: "AIzaSyAHDgrxnfQlvqN4ZfZH2J5qCjEQSoSbq4Y",
+            authDomain: "tabib-380fb.firebaseapp.com",
+            databaseURL: "https://tabib-380fb-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "tabib-380fb",
+            storageBucket: "tabib-380fb.firebasestorage.app",
+            messagingSenderId: "788379849606",
+            appId: "1:788379849606:web:4cfd0f8d4184869e811207"
+        };
+        const db = getDatabase(initializeApp(firebaseConfig));
+        const dbRef = ref(db, 'tabibData');
+
+        // ===== Helpers =====
+        const $ = id => document.getElementById(id);
+        const $$ = sel => document.querySelectorAll(sel);
+// ===== Échappement HTML =====
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+        // ===== Hachage SHA-256 =====
+        async function hashCode(code) {
+            const enc = new TextEncoder().encode(code);
+            const buf = await crypto.subtle.digest('SHA-256', enc);
+            return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        // ===== Objet App =====
+        const App = {
+            appData: { specs: [], patients: [], pendingPatients: [], admins: [], adminHash: null, _version: 0 },
+            currCode: "",
+            selectedDoc: null,
+            activeDoc: null,
+            activePatient: null,
+            isHourMode: false,
+            navigationHistory: ['pagePatients'],
+
+async init() {
+    try { const s = localStorage.getItem('tabibData');
+        if (s) this.appData = JSON.parse(s) || this.appData; } catch (e) {}
+    this.normalizeData();
+
+    onValue(dbRef, async (snap) => {
+        if (snap.val()) {
+            this.appData = snap.val();
+            this.normalizeData();
+            if (!this.appData.adminHash) {
+                console.log("🔑 Génération du hash admin par défaut...");
+                await this.generateAdminHash();
+            }
+        } else {
+            this.appData = { specs: [], patients: [], pendingPatients: [], admins: [], adminHash: null,
+            _version: 0 };
+            console.log("🔑 Initialisation Firebase – génération du hash admin...");
+            await this.generateAdminHash();
+        }
+        this.persistLocally();
+        if (this.activeDoc) this.activeDoc = this.appData.specs.flatMap(s => s.docs || []).find(d => d.id ===
+            this.activeDoc.id);
+        if (this.selectedDoc) this.selectedDoc = this.appData.specs.flatMap(s => s.docs || []).find(d => d.id ===
+            this.selectedDoc.id);
+        if (this.activePatient) this.activePatient = (this.appData.patients || []).find(p => p.id ===
+            this.activePatient.id) || this.activePatient;
+        this.updateUI();
+    });
+
+    $('btnUpdateDoc').addEventListener('click', () => this.updateDoc());
+
+    const numpadContainer = $('numpadContainer');
+    if (numpadContainer) {
+        numpadContainer.innerHTML = `
+        ${[1,2,3,4,5,6,7,8,9].map(n => `<button class="num-btn bg-white border border-slate-200 rounded-2xl py-5 text-2xl font-semibold text-slate-700 shadow-sm hover:bg-slate-50 active:scale-95 transition-all" onclick="App.pressN('${n}')">${n}</button>`).join('')}
+        <button class="num-btn bg-white border border-slate-200 rounded-2xl py-5 text-2xl font-semibold text-red-500 shadow-sm hover:bg-slate-50 active:scale-95 transition-all" onclick="App.clearCode()">C</button>
+        <button class="num-btn bg-white border border-slate-200 rounded-2xl py-5 text-2xl font-semibold text-slate-700 shadow-sm hover:bg-slate-50 active:scale-95 transition-all" onclick="App.pressN('0')">0</button>
+        <button class="num-btn bg-emerald-600 text-white rounded-2xl py-5 text-2xl font-semibold shadow-sm hover:bg-emerald-700 active:scale-95 transition-all" onclick="App.submitLogin()"><i class="fas fa-check"></i></button>
+      `;
+    }
+
+    this.updateUI();
+},
+// Nettoie les données (anti-injection HTML) et recrée les tableaux supprimés par Firebase
+normalizeData() {
+    const clean = v => {
+        if (typeof v === 'string') return v.replace(/'/g, '’').replace(/"/g, '”').replace(/[<>`\\]/g, '');
+        if (Array.isArray(v)) return v.map(clean);
+        if (v && typeof v === 'object') {
+            const o = {};
+            Object.keys(v).forEach(k => o[k] = clean(v[k]));
+            return o;
+        }
+        return v;
+    };
+    this.appData = clean(this.appData || {});
+    const d = this.appData;
+    ['specs', 'patients', 'pendingPatients', 'admins'].forEach(k => {
+        if (!Array.isArray(d[k])) d[k] = d[k] ? Object.values(d[k]) : [];
+    });
+    d.specs.forEach(s => {
+        if (!Array.isArray(s.docs)) s.docs = s.docs ? Object.values(s.docs) : [];
+        s.docs.forEach(doc => {
+            ['appointments', 'blockedSlots', 'history', 'secTel', 'subSpecs', 'services'].forEach(k => {
+                if (!Array.isArray(doc[k])) doc[k] = doc[k] ? Object.values(doc[k]) : [];
+            });
+        });
+    });
+},
+// Un code doit être unique (médecins, patients, inscriptions en attente)
+isCodeTaken(code, exceptId) {
+    const d = this.appData;
+    const docs = (d.specs || []).flatMap(s => s.docs || []);
+    return docs.some(x => x.code === code && x.id != exceptId)
+        || (d.patients || []).some(x => x.code === code && x.id != exceptId)
+        || (d.pendingPatients || []).some(x => x.code === code && x.id != exceptId);
+},
+// Convertit "jj/mm" en timestamp (gère le passage d'année, fiable sur tous les navigateurs)
+dayTime(day, ref) {
+    const [d, m] = String(day).split('/').map(Number);
+    const now = new Date(ref || Date.now());
+    const cm = now.getMonth() + 1;
+    let y = now.getFullYear();
+    if (m < cm - 6) y++;
+    else if (m > cm + 6) y--;
+    return new Date(y, m - 1, d).getTime();
+}
+
+
+,
+
+            async generateAdminHash() {
+                const hash = await hashCode('00001747');
+                this.appData.adminHash = hash;
+                await this.saveData();
+                console.log("✅ Hash admin enregistré :", hash);
+            },
+
+            persistLocally() { try { localStorage.setItem('tabibData', JSON.stringify(this.appData)); } catch (e) {} },
+
+            async saveData() {
+                this.appData._version = (this.appData._version || 0) + 1;
+                await update(dbRef, this.appData);
+                this.persistLocally();
+            },
+
+showToast(msg) {
+    const bar = $('notificationBar');
+    bar.querySelector('span').textContent = msg;
+    bar.classList.add('visible');
+    clearTimeout(this._toastTimer);
+    this._toastTimer = setTimeout(() => bar.classList.remove('visible'), 3000);
+},
+
+showScreen(id, saveHist = true) {
+    if (saveHist && this.navigationHistory.at(-1) !== id) this.navigationHistory.push(id);
+    $$('.screen').forEach(s => s.classList.remove('active'));
+    $(id).classList.add('active');
+    const isHome = (id === 'pagePatients' && !this.activePatient);
+    const roots = ['pageAdmin', 'pageDocSpace', 'pagePatientSpace'];
+    $('authLeft').style.display = $('authRight').style.display = isHome ? 'block' : 'none';
+    $('backBtnArea').style.display = (!isHome && id !== 'pageLogin' && !roots.includes(id)) ? 'block' : 'none';
+    $('patientNavbar').style.display = this.activePatient ? 'flex' : 'none';
+    this.updateUI();
+},
+
+            goBack() { if (this.navigationHistory.length > 1) { this.navigationHistory.pop();
+                    this.showScreen(this.navigationHistory.at(-1), false); } },
+            logout() { location.reload(); },
+
+            openLogin() { this.currCode = "";
+                $('loginDisplay').textContent = "";
+                this.showScreen('pageLogin'); },
+
+            pressN(n) {
+                if (this.currCode.length < 8) {
+                    this.currCode += n;
+                    $('loginDisplay').textContent = "•".repeat(this.currCode.length);
+                }
+            },
+            clearCode() { this.currCode = "";
+                $('loginDisplay').textContent = ""; },
+
+async submitLogin() {
+    const code = this.currCode;
+    if (!code) return this.showToast("Entrez un code");
+
+    if (this.appData.adminHash) {
+        const hashed = await hashCode(code);
+        if (hashed === this.appData.adminHash) {
+            this.navigationHistory = [];
+            this.showScreen('pageAdmin');
+            this.clearCode();
+            return;
+        }
+        if (this.appData.admins) {
+            for (let admin of this.appData.admins) {
+                if (hashed === admin.hash) {
+                    this.navigationHistory = [];
+                    this.showScreen('pageAdmin');
+                    this.clearCode();
+                    return;
+                }
+            }
+        }
+    }
+
+    const d = this.appData.specs.flatMap(s => s.docs || []).find(x => x.code === code);
+    if (d) { this.activeDoc = d;
+        $('docSpaceName').textContent = "Dr. " + d.name;
+        this.navigationHistory = [];
+        this.showScreen('pageDocSpace');
+        this.clearCode(); return; }
+
+    const p = (this.appData.patients || []).find(x => x.code === code);
+    if (p) { this.activePatient = p;
+        $('patientWelcome').textContent = "Bonjour, " + p.name;
+        this.navigationHistory = [];
+        this.showScreen('pagePatientSpace');
+        this.clearCode(); return; }
+
+    this.showToast("Code invalide");
+    this.clearCode();
+},
+
+            // === Gestion des admins ===
+            renderAdminsList() {
+                const container = $('adminsList');
+                if (!container) return;
+                const admins = this.appData.admins || [];
+                container.innerHTML = admins.map(a => `
+                <div class="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3 mb-2 border border-slate-100">
+                  <div>
+                    <div class="font-semibold text-sm text-slate-700">${a.name}</div>
+                    <div class="text-[10px] text-slate-400 font-mono">${a.hash.slice(0,8)}…</div>
+                  </div>
+                  <button onclick="App.removeAdmin('${a.id}')" class="w-9 h-9 rounded-xl bg-red-100 text-red-500 hover:bg-red-200 transition-all active:scale-95 flex items-center justify-center">
+                    <i class="fas fa-trash text-sm"></i>
+                  </button>
+                </div>
+              `).join('') || "<p class='text-sm text-slate-400 text-center py-3'>Aucun admin.</p>";
+            },
+
+async addAdmin() {
+    const name = $('newAdminName').value.trim();
+    const code = $('newAdminCode').value.trim();
+    if (!name || !/^\d{4}$/.test(code)) return this.showToast("Nom et code (4 chiffres) requis");
+    const hash = await hashCode(code);
+    if (!this.appData.admins) this.appData.admins = [];
+    this.appData.admins.push({ id: 'a' + Date.now(), name, hash, createdAt: Date.now() });
+    await this.saveData();
+    this.renderAdminsList();
+    $('newAdminName').value = '';
+    $('newAdminCode').value = '';
+    this.showToast("Admin ajouté !");
+},
+
+            removeAdmin(id) {
+                if (!confirm("Supprimer cet admin ?")) return;
+                this.appData.admins = this.appData.admins.filter(a => a.id !== id);
+                this.saveData();
+                this.renderAdminsList();
+                this.showToast("Admin supprimé.");
+            },
+
+// ===== Gérer médecins =====
+renderAdmins() {
+    $('admGlobalList').innerHTML = (this.appData.specs || []).map(s => {
+        const count = (s.docs || []).length;
+        return `<div class="bg-slate-50 rounded-xl border border-slate-100 overflow-hidden mb-3">
+      <div class="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-slate-100 transition-colors" onclick="App.toggleSect(this)">
+        <div class="flex items-center gap-3">
+          <span class="bg-emerald-100 text-emerald-700 text-xs font-bold px-3 py-0.5 rounded-full">${count}</span>
+          <span class="font-semibold text-sm text-slate-700">${s.label}</span>
+          ${count > 0 ? `<span class="text-[10px] text-slate-400">${count} médecin${count>1?'s':''}</span>` : ''}
+        </div>
+        <button onclick="event.stopPropagation(); App.delSpec('${s.id}')" 
+                class="w-8 h-8 rounded-xl bg-red-100 text-red-500 hover:bg-red-200 transition-all active:scale-95 flex items-center justify-center">
+          <i class="fas fa-trash text-xs"></i>
+        </button>
+      </div>
+      <div class="admin-content">
+        ${(s.docs||[]).map(d => `
+          <div class="flex items-center justify-between bg-white rounded-xl px-4 py-3 mb-2 border border-slate-100">
+            <div>
+              <div class="font-semibold text-sm text-slate-700">Dr. ${d.name}</div>
+              <div class="text-[10px] text-slate-400 font-mono">${d.code} · ${d.validityDays||0}j</div>
+            </div>
+            <div class="flex gap-2">
+              <button onclick="App.openEditDoc('${s.id}','${d.id}')" class="w-9 h-9 rounded-xl bg-amber-100 text-amber-600 hover:bg-amber-200 transition-all active:scale-95 flex items-center justify-center">
+                <i class="fas fa-edit text-sm"></i>
+              </button>
+              <button onclick="App.delDoc('${s.id}','${d.id}')" class="w-9 h-9 rounded-xl bg-red-100 text-red-500 hover:bg-red-200 transition-all active:scale-95 flex items-center justify-center">
+                <i class="fas fa-trash text-sm"></i>
+              </button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>`;
+    }).join('');
+},
+
+            // ===== RENDER UTILISATEURS =====
+            renderUsers() {
+                const list = (this.appData.patients || []);
+                $('admUserList').innerHTML = list.map(p => `
+                <div class="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3 mb-2 border border-slate-100">
+                  <div>
+                    <div class="font-semibold text-sm text-slate-700">${p.name}</div>
+                    <div class="text-[10px] text-slate-400 font-mono">${p.code} · ${p.tel}</div>
+                  </div>
+                  <div class="flex gap-2">
+                    <button onclick="App.openEditUser('${p.id}')" class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-600 hover:bg-emerald-200 transition-all active:scale-95 flex items-center justify-center">
+                      <i class="fas fa-edit text-sm"></i>
+                    </button>
+                    <button onclick="App.delUser('${p.id}')" class="w-9 h-9 rounded-xl bg-red-100 text-red-500 hover:bg-red-200 transition-all active:scale-95 flex items-center justify-center">
+                      <i class="fas fa-trash text-sm"></i>
+                    </button>
+                  </div>
+                </div>
+              `).join('') || "<p class='text-sm text-slate-400 text-center py-3'>Aucun utilisateur.</p>";
+            },
+
+            openEditUser(id) {
+                const user = this.appData.patients.find(p => p.id == id);
+                if (!user) return;
+                this._editingUserId = id;
+                $('editUserName').value = user.name || '';
+                $('editUserTel').value = user.tel || '';
+                $('editUserCode').value = user.code || '';
+                $('modalEditUser').classList.add('modal-show');
+            },
+
+saveUser() {
+    const id = this._editingUserId;
+    if (!id) return this.showToast("Aucun utilisateur sélectionné");
+    const user = this.appData.patients.find(p => p.id == id);
+    if (!user) return this.showToast("Utilisateur introuvable");
+
+    const name = $('editUserName').value.trim();
+    const tel = $('editUserTel').value.trim();
+    const code = $('editUserCode').value.trim();
+    if (!name || !tel || !code) return this.showToast("Tous les champs sont requis");
+    if (!/^\d+$/.test(code)) return this.showToast("Le code doit contenir uniquement des chiffres");
+    if (this.isCodeTaken(code, id)) return this.showToast("Ce code est déjà utilisé");
+
+    user.name = name;
+    user.tel = tel;
+    user.code = code;
+
+    this.saveData();
+    this.closeModals();
+    this.renderUsers();
+    this.showToast("✅ Utilisateur mis à jour");
+},
+
+            delUser(id) {
+                if (!confirm("Supprimer définitivement cet utilisateur ?")) return;
+                this.appData.patients = this.appData.patients.filter(p => p.id != id);
+                this.saveData();
+                this.renderUsers();
+                this.showToast("Utilisateur supprimé.");
+            },
+
+// ===== RENDER DEMANDES DE RDV =====
+renderDocApps() {
+    if (!this.activeDoc) return;
+    const all = this.activeDoc.appointments || [];
+    const pending = all.filter(a => a.status === 'pending').sort((a, b) => a.createdAt - b.createdAt);
+    const valid = all.filter(a => a.status === 'valid').sort((a, b) => this.dayTime(a.day) - this.dayTime(b.day) || a.hour - b.hour);
+
+    const badge = $('docPendingBadge');
+    if (pending.length > 0) {
+        badge.style.display = 'inline-block';
+        badge.textContent = pending.length;
+    } else {
+        badge.style.display = 'none';
+    }
+    $('docNotifDot').style.display = pending.length > 0 ? 'inline-block' : 'none';
+
+    const today = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'numeric' });
+    const todayCount = valid.filter(a => a.day === today).length;
+    $('todayCount').textContent = todayCount;
+    $('pendingCount').textContent = pending.length;
+
+    let html = '';
+    if (pending.length === 0 && valid.length === 0) {
+        html = '<p class="text-sm text-slate-400 text-center py-4">Aucun rendez-vous.</p>';
+    } else {
+        const allSorted = [...pending, ...valid].sort((a, b) => {
+            const diff = this.dayTime(a.day) - this.dayTime(b.day);
+            if (diff !== 0) return diff;
+            return a.hour - b.hour;
+        });
+
+        let currentDay = '';
+        allSorted.forEach(a => {
+            if (a.day !== currentDay) {
+                currentDay = a.day;
+                html +=
+                    `<div class="text-xs font-semibold text-slate-500 mt-3 mb-1.5">📅 ${a.day}</div>`;
+            }
+            const isPending = a.status === 'pending';
+            html += `
+        <div class="rdv-card" data-id="${a.id}">
+          <div class="flex items-center justify-between">
+            <span class="font-semibold text-sm text-slate-800">${a.patName}</span>
+            <span class="rdv-status ${a.status}">${isPending ? 'En attente' : 'Validé'}</span>
+          </div>
+          <div class="flex items-center gap-4 text-xs text-slate-500 mt-1">
+            <span><i class="far fa-clock mr-1"></i>${a.hour}h</span>
+            <span><i class="fas fa-phone mr-1"></i>${a.patTel}</span>
+          </div>
+          <div class="flex gap-2 mt-2.5">
+            ${isPending ? `
+              <button class="btn-action-sm bg-success" onclick="App.validateRDV('${a.id}')"><i class="fas fa-check"></i> Valider</button>
+              <button class="btn-action-sm bg-danger" onclick="App.rejectRDV('${a.id}')"><i class="fas fa-times"></i> Rejeter</button>
+            ` : `
+              <button class="btn-action-sm bg-secondary" onclick="location.href='tel:${a.patTel}'"><i class="fas fa-phone"></i> Appeler</button>
+              <button class="btn-action-sm bg-danger" onclick="App.confirmDelRDV('${a.id}')"><i class="fas fa-trash"></i> Supprimer</button>
+            `}
+          </div>
+        </div>
+      `;
+        });
+    }
+    $('docAppointmentsList').innerHTML = html;
+},
+
+// ===== RENDER CALENDRIER =====
+renderCalendar(cid, isDoc) {
+    const doc = isDoc ? this.activeDoc : this.selectedDoc;
+    if (!doc) return;
+    const days = Array.from({ length: 6 }, (_, i) => { let d = new Date();
+        d.setDate(d.getDate() + i); return { l: ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"][d.getDay()],
+            s: d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'numeric' }) }; });
+    const now = new Date(),
+        curH = now.getHours(),
+        curD = now.toLocaleDateString('fr-FR', { day: 'numeric', month: 'numeric' });
+
+    let htm =
+        `<table class="w-full border-collapse text-xs"><thead><tr><th class="py-2 px-1 text-slate-400 font-semibold text-[10px] uppercase"></th>`;
+    days.forEach(d => { htm +=
+            `<th class="py-2 px-1 text-slate-500 font-semibold text-[10px]">${d.l}<br><span class="text-slate-400">${d.s}</span></th>`; });
+    htm += `</tr></thead><tbody>`;
+    [9, 10, 11, 14, 15, 16].forEach(h => {
+        htm += `<tr><td class="py-2 px-1 text-slate-400 font-medium text-[10px] text-center">${h}h</td>`;
+        days.forEach(d => {
+            const key = `${d.s}-${h}`,
+                all = doc.appointments || [],
+                val = all.filter(a => a.day === d.s && a.hour === h && a.status === 'valid');
+            const blk = (doc.blockedSlots || []).includes(key),
+                mine = this.activePatient && all.find(a => a.patId === this.activePatient
+                    .id && a.day === d.s && a.hour === h);
+            let cls = blk ? "is-blocked" : mine ? "is-busy" : val.length >= doc.capacity ?
+                "is-full" : val.length || all.filter(a => a.day === d.s && a.hour === h &&
+                    a.status === 'pending').length ? "is-busy" : "available";
+            let txt = blk ? "X" : mine ? (mine.status === 'valid' ? "✓" : "⏳") : val.length >=
+                doc.capacity ? "Plein" : `${val.length}/${doc.capacity}`;
+            const isPast = d.s === curD && h <= curH;
+            if (isPast) cls += " past";
+            const clickable = isDoc ? true : (!isPast && !blk && (val.length < doc.capacity || mine));
+            htm +=
+                `<td class="${cls} rounded-lg px-1 py-2 text-center text-[10px] font-medium transition-colors ${clickable ? 'hover:opacity-80' : ''}" ${clickable ? `onclick="App.handleSlot('${d.s}',${h},${isDoc},${!!mine})"` : ''}>${txt}</td>`;
+        });
+        htm += `</tr>`;
+    });
+    htm += `</tbody></table>`;
+    $(cid).innerHTML = htm;
+    const hint = $('blockModeHint');
+    if (hint) hint.textContent = this.isHourMode ? '🔒 Mode blocage' :
+    '🟢 Cliquez sur un créneau pour gérer';
+},
+
+// ===== GESTION DES ACTIONS MÉDECIN =====
+handleSlot(day, hour, isDoc, isMine) {
+    if (isDoc) {
+        if (this.isHourMode) {
+            let blk = this.activeDoc.blockedSlots || [];
+            this.activeDoc.blockedSlots = blk.includes(`${day}-${hour}`) ? blk.filter(s => s !==
+                `${day}-${hour}`) : [...blk, `${day}-${hour}`];
+            this.saveData();
+            this.renderCalendar('docCalContainer', true);
+            this.showToast(blk.includes(`${day}-${hour}`) ? "Créneau débloqué" : "Créneau bloqué");
+            return;
+        }
+        const ls = (this.activeDoc.appointments || []).filter(a => a.day === day && a.hour === hour);
+        if (ls.length) {
+            $('modalDocTitle').textContent = `RDV ${day} à ${hour}h`;
+            $('docActionInfo').innerHTML = ls.map(a => `
+          <div class="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3 border border-slate-100">
+            <div>
+              <div class="font-semibold text-sm text-slate-700">${a.patName}</div>
+              <div class="text-[10px] text-slate-400 ${a.status==='valid'?'text-emerald-600':'text-amber-600'}">${a.status==='valid'?'Validé':'Attente'}</div>
+            </div>
+            <div class="flex gap-2">
+              <button class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-600 hover:bg-emerald-200 transition-all active:scale-95 flex items-center justify-center" onclick="location.href='tel:${a.patTel}'"><i class="fas fa-phone text-sm"></i></button>
+              ${a.status==='pending' ? `<button class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-600 hover:bg-emerald-200 transition-all active:scale-95 flex items-center justify-center" onclick="App.validateRDV('${a.id}')"><i class="fas fa-check text-sm"></i></button>` : ''}
+              <button class="w-9 h-9 rounded-xl bg-red-100 text-red-500 hover:bg-red-200 transition-all active:scale-95 flex items-center justify-center" onclick="App.confirmDelRDV('${a.id}')"><i class="fas fa-trash text-sm"></i></button>
+            </div>
+          </div>
+        `).join('');
+            $('modalConfirmButtons').style.display = 'none';
+            $('btnCloseModal').style.display = 'block';
+            $('modalDoc').classList.add('modal-show');
+        } else {
+            this.showToast("Aucun rendez-vous à cet horaire");
+        }
+    } else {
+        if (!this.activePatient) { this.showToast("Connectez-vous");
+            return setTimeout(() => this.openLogin(), 1000); }
+        if (this.selectedDoc.expiresAt && Date.now() > this.selectedDoc.expiresAt) return this.showToast(
+            "Code obsolète.");
+        const rdv = this.selectedDoc.appointments?.find(a => a.patId === this.activePatient.id && a.day ===
+            day && a.hour === hour);
+        if (!isMine) {
+            const nowD = new Date();
+            const todayStr = nowD.toLocaleDateString('fr-FR', { day: 'numeric', month: 'numeric' });
+            if (day === todayStr && hour <= nowD.getHours()) return this.showToast("Créneau passé");
+            if ((this.selectedDoc.blockedSlots || []).includes(`${day}-${hour}`)) return this.showToast(
+                "Créneau indisponible");
+        }
+        if (isMine && rdv?.status === 'valid') {
+            $('modalDocTitle').textContent = "RDV Confirmé";
+            $('docActionInfo').innerHTML =
+                `<p class="text-center text-emerald-600 font-medium py-3">✅ Déjà confirmé par le médecin.</p>`;
+            $('modalConfirmButtons').style.display = 'none';
+            $('btnCloseModal').style.display = 'block';
+        } else {
+            $('modalDocTitle').textContent = isMine ? "Annuler ?" : "Réserver ?";
+            $('docActionInfo').innerHTML =
+                `<p class="text-center text-lg font-semibold text-slate-700 py-3">${day} à ${hour}h</p>`;
+            $('modalConfirmButtons').style.display = 'flex';
+            $('btnFinalConfirm').onclick = () => {
+                if (isMine) {
+                    this.selectedDoc.appointments = this.selectedDoc.appointments
+                        .filter(a => !(a.patId === this.activePatient.id && a.day === day && a.hour === hour));
+                    this.showToast("Annulé.");
+                } else {
+                    const taken = (this.selectedDoc.appointments || [])
+                        .filter(a => a.day === day && a.hour === hour && a.status === 'valid').length;
+                    if (taken >= this.selectedDoc.capacity) {
+                        this.showToast("Créneau complet.");
+                        this.closeModals();
+                        return;
+                    }
+                    this.selectedDoc.appointments = [...(this.selectedDoc.appointments || []), {
+                        id: Date.now(),
+                        createdAt: Date.now(),
+                        patId: this.activePatient.id,
+                        patName: this.activePatient.name,
+                        patTel: this.activePatient.tel,
+                        day, hour, status: 'pending'
+                    }];
+                    this.showToast("Demande envoyée.");
+                }
+                this.saveData();
+                this.closeModals();
+            };
+        }
+        $('modalDoc').classList.add('modal-show');
+    }
+},
+
+            confirmDelRDV(id) {
+                if (!confirm("Supprimer définitivement ce rendez-vous ?")) return;
+                this.activeDoc.appointments = this.activeDoc.appointments.filter(a => a.id != id);
+                this.saveData();
+                this.closeModals();
+                this.updateUI();
+                this.showToast("Supprimé.");
+            },
+
+validateRDV(id) {
+    const a = this.activeDoc.appointments.find(x => x.id == id);
+    if (!a || a.status === 'valid') return;
+    const taken = this.activeDoc.appointments
+        .filter(x => x.day === a.day && x.hour === a.hour && x.status === 'valid').length;
+    if (taken >= this.activeDoc.capacity) return this.showToast("Capacité atteinte pour ce créneau");
+    a.status = 'valid';
+    this.activeDoc.history = [...(this.activeDoc.history || []), { ...a, confirmedAt: Date.now() }];
+    this.saveData();
+    this.closeModals();
+    this.updateUI();
+    this.showToast("✅ Rendez-vous validé");
+},
+            rejectRDV(id) {
+                this.activeDoc.appointments = this.activeDoc.appointments.filter(a => a.id != id);
+                this.saveData();
+                this.updateUI();
+                this.showToast("❌ Demande rejetée");
+            },
+
+            toggleHourMode() {
+                this.isHourMode = !this.isHourMode;
+                const btn = $('btnToggleHours');
+                if (this.isHourMode) {
+                    btn.className =
+                        'flex-1 min-w-[100px] bg-red-500 hover:bg-red-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-all active:scale-95 shadow-sm';
+                    btn.innerHTML = '<i class="fas fa-unlock mr-1.5"></i> Mode normal';
+                    this.showToast("🔒 Mode blocage activé");
+                } else {
+                    btn.className =
+                        'flex-1 min-w-[100px] bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-all active:scale-95 shadow-sm';
+                    btn.innerHTML = '<i class="fas fa-lock mr-1.5"></i> Mode blocage';
+                    this.showToast("🔓 Mode normal");
+                }
+                this.renderCalendar('docCalContainer', true);
+            },
+
+// ===== HISTORIQUE AMÉLIORÉ =====
+openHistory() {
+    this.showScreen('pageHistory');
+    const history = this.activeDoc.history || [];
+    const count = history.length;
+    $('historyCount').textContent = `${count} rendez-vous validés`;
+
+    if (count === 0) {
+        $('historyList').innerHTML =
+            `<p class="text-sm text-slate-400 text-center py-6">Aucun rendez-vous dans l'historique.</p>`;
+        return;
+    }
+
+    const grouped = {};
+    history.forEach(item => {
+        const day = item.day;
+        if (!grouped[day]) grouped[day] = [];
+        grouped[day].push(item);
+    });
+
+    const refOf = day => grouped[day][0].confirmedAt || Date.now();
+    const sortedDays = Object.keys(grouped).sort((a, b) => this.dayTime(b, refOf(b)) - this.dayTime(a, refOf(a)));
+
+    let html = '';
+    sortedDays.forEach(day => {
+        html += `<div class="mt-4 first:mt-0"><div class="text-xs font-semibold text-slate-500 mb-2">📅 ${day}</div>`;
+        const items = grouped[day].sort((a, b) => a.hour - b.hour);
+        items.forEach(item => {
+            const confirmDate = item.confirmedAt ? new Date(item.confirmedAt).toLocaleString(
+                'fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit',
+                    minute: '2-digit' }) : 'Non daté';
+            html += `
+        <div class="flex items-center justify-between bg-white rounded-xl px-4 py-3 mb-2 border border-slate-100 shadow-sm">
+          <div>
+            <div class="font-semibold text-sm text-slate-800">${item.patName}</div>
+            <div class="text-xs text-slate-400">${item.patTel} · ${item.hour}h</div>
+            <div class="text-[10px] text-emerald-600 mt-0.5"><i class="fas fa-check-circle mr-1"></i>Confirmé le ${confirmDate}</div>
+          </div>
+          <a href="tel:${item.patTel}" class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 hover:bg-emerald-200 transition-all active:scale-95 flex items-center justify-center">
+            <i class="fas fa-phone text-sm"></i>
+          </a>
+        </div>
+      `;
+        });
+        html += `</div>`;
+    });
+
+    $('historyList').innerHTML = html;
+},
+
+            exportHistory() {
+                const history = this.activeDoc.history || [];
+                if (history.length === 0) return this.showToast("Historique vide");
+
+                const header = ['Patient', 'Téléphone', 'Date', 'Heure', 'Statut', 'Confirmé le'];
+                const rows = history.map(item => {
+                    const confirmDate = item.confirmedAt ? new Date(item.confirmedAt).toLocaleString('fr-FR') :
+                        '';
+                    return [item.patName, item.patTel, item.day, item.hour, 'Validé', confirmDate];
+                });
+
+                const csvContent = [header, ...rows].map(row => row.join(';')).join('\n');
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = `historique_${this.activeDoc.name}_${new Date().toISOString().slice(0,10)}.csv`;
+                link.click();
+                URL.revokeObjectURL(link.href);
+                this.showToast("📤 Export CSV réussi");
+            },
+
+            clearHistory() {
+                if (!confirm("Vider tout l'historique ? Cette action est irréversible.")) return;
+                this.activeDoc.history = [];
+                this.saveData();
+                this.openHistory();
+                this.showToast("🗑️ Historique vidé");
+            },
+
+            // ===== RAPPORT JOURNALIER =====
+            printDailyReport() {
+                const today = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'numeric' });
+                const apps = (this.activeDoc.appointments || []).filter(a => a.day === today && a.status === 'valid')
+                    .sort((a, b) => a.hour - b.hour);
+                $('printArea').innerHTML =
+                    `<h1 class="text-center text-2xl font-bold">Rapport - Dr. ${this.activeDoc.name}</h1><h3 class="text-center text-lg">${today}</h3><table class="w-full border-collapse mt-4"><tr><th class="border p-2">Heure</th><th class="border p-2">Patient</th><th class="border p-2">Tel</th></tr>${apps.map(a=>`<tr><td class="border p-2">${a.hour}h</td><td class="border p-2">${a.patName}</td><td class="border p-2">${a.patTel}</td></tr>`).join('')}</table>`;
+                window.print();
+            },
+
+            // ===== AUTRES FONCTIONS =====
+            renderPatientApps() {
+                let h = "";
+                (this.appData.specs || []).forEach(s => s.docs?.forEach(d => d.appointments?.filter(a => a.patId ===
+                    this.activePatient.id).forEach(a => h += `
+                  <div class="flex items-center justify-between bg-white rounded-xl px-4 py-3 border border-slate-100 shadow-sm">
+                    <div>
+                      <div class="font-semibold text-sm text-slate-800">Dr. ${d.name}</div>
+                      <div class="text-xs text-slate-400">${a.day} à ${a.hour}h</div>
+                    </div>
+                    <span class="text-xs font-semibold ${a.status==='valid'?'text-emerald-600':'text-amber-600'}">${a.status==='valid'?'✅ Confirmé':'⏳ En attente'}</span>
+                  </div>
+                `)));
+                $('patientAppointments').innerHTML = h || "<p class='text-sm text-slate-400 text-center py-6'>Aucun RDV.</p>";
+            },
+
+            renderPending() {
+                $('admPendingList').innerHTML = (this.appData.pendingPatients || []).map(p => `
+                <div class="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3 mb-2 border border-slate-100">
+                  <div>
+                    <div class="font-semibold text-sm text-slate-700">${p.name}</div>
+                    <div class="text-[10px] text-slate-400">${p.tel}</div>
+                  </div>
+                  <div class="flex gap-2">
+                    <button onclick="App.acceptPat('${p.id}')" class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-600 hover:bg-emerald-200 transition-all active:scale-95 flex items-center justify-center">
+                      <i class="fas fa-check text-sm"></i>
+                    </button>
+                    <button onclick="App.rejectPat('${p.id}')" class="w-9 h-9 rounded-xl bg-red-100 text-red-500 hover:bg-red-200 transition-all active:scale-95 flex items-center justify-center">
+                      <i class="fas fa-times text-sm"></i>
+                    </button>
+                  </div>
+                </div>
+              `).join('') || "<p class='text-sm text-slate-400 text-center py-3'>Aucune demande.</p>";
+            },
+
+acceptPat(id) { const p = this.appData.pendingPatients.find(x => x.id == id);
+    if (!p) return;
+    this.appData.pendingPatients = this.appData.pendingPatients.filter(x => x.id != id);
+    this.appData.patients = [...(this.appData.patients || []), p];
+    this.saveData();
+    this.renderPending(); },
+            rejectPat(id) { this.appData.pendingPatients = this.appData.pendingPatients.filter(p => p.id != id);
+                this.saveData();
+                this.renderPending(); },
+
+            delSpec(id) { if (confirm("Supprimer la spécialité ?")) { this.appData.specs = this.appData.specs.filter(s =>
+                    s.id !== id);
+                    this.saveData();
+                    this.renderAdmins(); } },
+            delDoc(sid, did) { if (confirm("Supprimer ce médecin ?")) { const s = this.appData.specs.find(x => x.id ===
+                    sid);
+                    s.docs = s.docs.filter(x => x.id !== did);
+                    this.saveData();
+                    this.renderAdmins(); } },
+
+            openEditDoc(sid, did) {
+                const d = this.appData.specs.find(x => x.id === sid).docs.find(x => x.id === did);
+                $('editDocName').value = d.name || '';
+                $('editDocTitle').value = d.title || '';
+                $('editDocTel').value = d.tel || '';
+                $('editDocCode').value = d.code || '';
+                $('editDocDuration').value = d.validityDays || '';
+                $('editCapDisplay').textContent = d.capacity || 3;
+                $('editDocEmail').value = d.email || '';
+                $('editDocSecTel').value = (d.secTel || []).join(', ');
+                $('editDocAddress').value = d.address || '';
+                $('editDocSubSpecs').value = (d.subSpecs || []).join(', ');
+                $('editDocServices').value = (d.services || []).join(', ');
+                this._eS = sid;
+                this._eD = did;
+                $('modalEditDoc').classList.add('modal-show');
+            },
+
+updateDoc() {
+    const s = this.appData.specs.find(x => x.id === this._eS);
+    if (!s) return this.showToast("Spécialité introuvable");
+    const d = s.docs.find(x => x.id === this._eD);
+    if (!d) return this.showToast("Médecin introuvable");
+    const j = parseInt($('editDocDuration').value) || 0;
+    const name = $('editDocName').value.trim();
+    const code = $('editDocCode').value.trim();
+    if (!name || !code) return this.showToast("Nom et code requis");
+    if (!/^\d{1,8}$/.test(code)) return this.showToast("Code : 8 chiffres maximum");
+    if (this.isCodeTaken(code, d.id)) return this.showToast("Ce code est déjà utilisé");
+    d.name = name;
+    d.title = $('editDocTitle').value.trim();
+    d.email = $('editDocEmail').value.trim();
+    d.tel = $('editDocTel').value.trim();
+    d.secTel = $('editDocSecTel').value.split(',').map(s => s.trim()).filter(s => s);
+    d.address = $('editDocAddress').value.trim();
+    d.subSpecs = $('editDocSubSpecs').value.split(',').map(s => s.trim()).filter(s => s);
+    d.services = $('editDocServices').value.split(',').map(s => s.trim()).filter(s => s);
+    d.code = code;
+    d.validityDays = j;
+    d.expiresAt = Date.now() + (j * 86400000) - (j ? 0 : 60000);
+    d.capacity = parseInt($('editCapDisplay').textContent);
+    this.saveData();
+    this.closeModals();
+    this.renderAdmins();
+    this.showToast("✅ Médecin mis à jour");
+},
+
+// ===== PATIENT : affichage des spécialités =====
+renderPatientHome() {
+    const grid = $('specialtyGrid');
+    if (!grid) return;
+    if (this._openSpec && (this.appData.specs || []).some(s => s.id === this._openSpec)) return this.openSpec(this._openSpec);
+    this._openSpec = null;
+
+    const all = this.appData.specs || [];
+    const q = this._q || '';
+    const specs = q ? all.filter(s => String(s.label).toLowerCase().includes(q)) : all;
+    const now = Date.now();
+    const countDocs = s => (s.docs || []).filter(d => !d.expiresAt || now <= d.expiresAt).length;
+    const palette = [['#10b981', '#047857'], ['#3b82f6', '#1d4ed8'], ['#f59e0b', '#d97706'], ['#ec4899', '#be185d'],
+        ['#8b5cf6', '#6d28d9'], ['#14b8a6', '#0f766e'], ['#ef4444', '#b91c1c'], ['#06b6d4', '#0e7490']];
+
+    const stats = $('heroStats');
+    if (stats) {
+        const nDocs = all.reduce((n, s) => n + countDocs(s), 0);
+        stats.innerHTML = `<span class="hero-chip"><i class="fas fa-layer-group"></i>${all.length} spécialité${all.length > 1 ? 's' : ''}</span>
+            <span class="hero-chip"><i class="fas fa-user-doctor"></i>${nDocs} médecin${nDocs > 1 ? 's' : ''}</span>`;
+    }
+    const title = $('specTitle');
+    if (title) title.textContent = q ? 'Résultats' : 'Spécialités';
+
+    if (!specs.length) {
+        grid.innerHTML = `<div class="empty-state"><i class="fas fa-magnifying-glass"></i>${q ? 'Aucune spécialité ne correspond à votre recherche.' : 'Aucune spécialité disponible pour le moment.'}</div>`;
+        return;
+    }
+    grid.innerHTML = specs.map(s => {
+        const [c1, c2] = palette[all.indexOf(s) % palette.length];
+        const n = countDocs(s);
+        return `<div class="spec-tile" style="--c1:${c1};--c2:${c2}" onclick="App.openSpec('${esc(s.id)}')">
+            <span class="spec-icon"><i class="fas ${this.specIcon(s.label)}"></i></span>
+            <div>
+                <div class="spec-name">${esc(s.label)}</div>
+                <div class="spec-count">${n} médecin${n > 1 ? 's' : ''}</div>
+            </div>
+            <i class="fas fa-arrow-right spec-arrow"></i>
+        </div>`;
+    }).join('');
+},
+specIcon(label) {
+    const l = String(label || '').toLowerCase();
+    const map = [
+        [/cardi/, 'fa-heart-pulse'], [/dent|stomato/, 'fa-tooth'], [/ophtal|œil|oeil/, 'fa-eye'],
+        [/pédiat|pediat/, 'fa-baby'], [/gyn|obst/, 'fa-person-pregnant'], [/ortho|rhumat|traumat/, 'fa-bone'],
+        [/neuro|psych/, 'fa-brain'], [/pneumo|poumon/, 'fa-lungs'], [/orl|oto/, 'fa-ear-listen'],
+        [/radio|imagerie/, 'fa-x-ray'], [/derma/, 'fa-hand-dots'], [/généra|genera/, 'fa-stethoscope'],
+        [/analyse|labo|biolog/, 'fa-vial'], [/uro|néphro|nephro/, 'fa-droplet']
+    ];
+    const hit = map.find(([re]) => re.test(l));
+    return hit ? hit[1] : 'fa-user-doctor';
+},
+initials(name) {
+    return String(name || '').replace(/^dr\.?\s*/i, '').trim().split(/\s+/).slice(0, 2).map(w => w[0] || '').join('').toUpperCase() || 'DR';
+},
+filterSpecs(q) {
+    this._q = String(q || '').trim().toLowerCase();
+    this._openSpec = null;
+    this.renderPatientHome();
+},
+closeSpec() {
+    this._openSpec = null;
+    this.renderPatientHome();
+}
+
+
+
+,
+
+// ===== OUVERTURE D'UNE SPÉCIALITÉ =====
+openSpec(sid) {
+    const grid = $('specialtyGrid');
+    if (!grid) return;
+    const spec = (this.appData.specs || []).find(x => x.id === sid);
+    if (!spec) {
+        this.showToast("Spécialité introuvable");
+        return;
+    }
+    this._openSpec = sid;
+    const docs = (spec.docs || []).filter(d => !d.expiresAt || Date.now() <= d.expiresAt);
+    const title = $('specTitle');
+    if (title) title.textContent = spec.label;
+
+    const back = `<button class="back-btn" onclick="App.closeSpec()"><i class="fas fa-arrow-left"></i> Toutes les spécialités</button>`;
+    if (docs.length === 0) {
+        grid.innerHTML = back + `<div class="empty-state"><i class="fas fa-user-doctor"></i>Aucun médecin disponible pour cette spécialité.</div>`;
+        return;
+    }
+    grid.innerHTML = back + docs.map(d => {
+        const chips = (d.subSpecs || []).slice(0, 2).map(x => `<span class="chip">${esc(x)}</span>`).join('');
+        return `<div class="doc-card" onclick="App.openDocCal('${esc(spec.id)}','${esc(d.id)}')">
+            <div class="avatar">${esc(this.initials(d.name))}</div>
+            <div class="doc-body">
+                <div class="doc-name">Dr. ${esc(d.name)}</div>
+                <div class="doc-title">${esc(d.title || 'Médecin')}</div>
+                ${d.address ? `<div class="doc-meta"><i class="fas fa-location-dot"></i>${esc(d.address)}</div>` : ''}
+                ${chips ? `<div class="chip-row">${chips}</div>` : ''}
+            </div>
+            <span class="doc-cta"><i class="fas fa-calendar-check"></i></span>
+        </div>`;
+    }).join('');
+},
+
+// ===== OUVERTURE DU CALENDRIER D'UN MÉDECIN =====
+openDocCal(sid, did) {
+    const spec = this.appData.specs.find(s => s.id === sid);
+    if (!spec) { this.showToast("Spécialité introuvable"); return; }
+    const doc = (spec.docs || []).find(d => d.id === did);
+    if (!doc) { this.showToast("Médecin introuvable"); return; }
+    this.selectedDoc = doc;
+    const info = $('calPatientInfo');
+    if (info) info.innerHTML = `
+        <div class="cal-doc">
+            <div class="avatar">${esc(this.initials(doc.name))}</div>
+            <div class="doc-body">
+                <div class="doc-name">Dr. ${esc(doc.name)}</div>
+                <div class="doc-title">${esc(doc.title || spec.label)}</div>
+                ${doc.address ? `<div class="doc-meta"><i class="fas fa-location-dot"></i>${esc(doc.address)}</div>` : ''}
+            </div>
+            ${doc.tel ? `<a class="doc-cta" href="tel:${esc(doc.tel)}" title="Appeler"><i class="fas fa-phone"></i></a>` : ''}
+        </div>`;
+    this.showScreen('pageCalPatient');
+},
+
+            updateUI() {
+                const act = document.querySelector('.screen.active')?.id;
+                if (act === 'pagePatients') this.renderPatientHome();
+                if (this.activeDoc && act === 'pageDocSpace') {
+                    this.renderCalendar('docCalContainer', true);
+                    this.renderDocApps();
+                }
+                if (this.selectedDoc && act === 'pageCalPatient') {
+                    this.renderCalendar('calPatientContainer', false);
+                }
+                if (this.activePatient && act === 'pagePatientSpace') this.renderPatientApps();
+                if (act === 'pageAdmin') {
+                    $('notifDot').style.display = this.appData.pendingPatients?.length ? 'inline-block' : 'none';
+                    this.renderAdminsList();
+                }
+            },
+
+            closeModals() { $$('.internal-modal').forEach(m => m.classList.remove('modal-show')); },
+            toggleSect(h) { h.nextElementSibling.classList.toggle('open'); },
+            cycleCap(id) { let v = parseInt($(id).textContent);
+                $(id).textContent = v >= 4 ? 1 : v + 1; },
+
+addSpec() {
+    const n = $('admSpecInput').value.trim();
+    if (!n) return;
+    if ((this.appData.specs || []).some(s => s.label.toLowerCase() === n.toLowerCase())) return this.showToast(
+        "Spécialité déjà existante");
+    this.appData.specs = [...(this.appData.specs || []), { id: 's' + Date.now(), label: n, icon: 'fa-user-md',
+        docs: [] }];
+    this.saveData();
+    this.updateSpecSel();
+    $('admSpecInput').value = "";
+    this.showToast("Ajoutée !");
+},
+            updateSpecSel() { $('admSpecSelect').innerHTML = (this.appData.specs || []).map(s =>
+                    `<option value="${s.id}">${s.label}</option>`).join(''); },
+
+addDoc() {
+    const sid = $('admSpecSelect').value;
+    const j = parseInt($('admDocDuration').value) || 0;
+    const name = $('admDocName').value.trim();
+    const code = $('admDocCode').value.trim();
+    if (!sid || !name || !code) return this.showToast("Champs requis");
+    if (!/^\d{1,8}$/.test(code)) return this.showToast("Code : 8 chiffres maximum");
+    if (this.isCodeTaken(code)) return this.showToast("Ce code est déjà utilisé");
+
+    const s = this.appData.specs.find(x => x.id === sid);
+    if (!s) return this.showToast("Spécialité introuvable");
+    if (!s.docs) s.docs = [];
+    const email = $('admDocEmail').value.trim();
+    const secTel = $('admDocSecTel').value.split(',').map(s => s.trim()).filter(s => s);
+    const address = $('admDocAddress').value.trim();
+    const subSpecs = $('admDocSubSpecs').value.split(',').map(s => s.trim()).filter(s => s);
+    const services = $('admDocServices').value.split(',').map(s => s.trim()).filter(s => s);
+
+    s.docs.push({
+        id: 'd' + Date.now(),
+        name: name,
+        title: $('admDocTitle').value,
+        email: email,
+        tel: $('admDocTel').value,
+        secTel: secTel,
+        address: address,
+        subSpecs: subSpecs,
+        services: services,
+        code: code,
+        capacity: parseInt($('capDisplay').textContent),
+        validityDays: j,
+        expiresAt: Date.now() + (j * 86400000) - (j ? 0 : 60000),
+        appointments: [],
+        blockedSlots: [],
+        history: []
+    });
+
+    this.saveData();
+    this.showToast("✅ Médecin ajouté !");
+    ['admDocName', 'admDocTitle', 'admDocEmail', 'admDocTel', 'admDocSecTel', 'admDocAddress',
+        'admDocSubSpecs', 'admDocServices', 'admDocCode', 'admDocDuration'
+    ].forEach(id => $(id).value = '');
+},
+
+handleSignup() {
+    const n = $('regName').value.trim();
+    const t = $('regTel').value.trim();
+    const c = $('regPass').value.trim();
+    if (!n || !t || !c) return this.showToast("Tous les champs sont requis");
+    if (!/^\d+$/.test(c)) return this.showToast("Le code doit contenir uniquement des chiffres");
+    if (this.isCodeTaken(c)) return this.showToast("Ce code est déjà utilisé, choisissez-en un autre");
+    this.appData.pendingPatients = [...(this.appData.pendingPatients || []), { id: Date.now(), name: n,
+        tel: t, code: c }];
+    this.saveData();
+    ['regName', 'regTel', 'regPass'].forEach(id => $(id).value = '');
+    this.showToast("Demande envoyée !");
+    this.showScreen('pagePatients');
+}
+        };
+
+        window.App = App;
+        App.init();
+
+        if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register(
+        './sw.js'));
+    </script>
+
+<style id="mastercode-native-style">
+html{
+  touch-action:manipulation;
+  overscroll-behavior:none;
+}
+body{
+  overscroll-behavior:none;
+  -webkit-touch-callout:none;
+  -webkit-user-select:none;
+  user-select:none;
+}
+input,textarea,[contenteditable="true"]{
+  -webkit-user-select:text;
+  user-select:text;
+}
+</style>
+<script>
+(function(){
+  document.addEventListener('gesturestart', function(e){ e.preventDefault(); }, { passive:false });
+  document.addEventListener('contextmenu', function(e){
+    var t = e.target;
+    if(t && t.closest && t.closest('input,textarea,[contenteditable="true"]')) return;
+    e.preventDefault();
+  });
+})();
+</script>
+    
+
+<script>
+(function(){
+  if(!navigator.vibrate) return;
+  document.addEventListener('click', function(e){
+    var t = e.target && e.target.closest ? e.target.closest('button,[role="button"],a,input[type="button"],input[type="submit"]') : null;
+    if(t) navigator.vibrate(8);
+  }, true);
+})();
+</script>
+    
+
+<script>
+(function(){
+  var DARK = '#07663d';
+  var LIGHT = '#ffffff';
+  var mq = window.matchMedia('(prefers-color-scheme: dark)');
+  function apply(){
+    var tag = document.querySelector('meta[name="theme-color"]');
+    if(!tag){
+      tag = document.createElement('meta');
+      tag.setAttribute('name', 'theme-color');
+      document.head.appendChild(tag);
+    }
+    tag.setAttribute('content', mq.matches ? DARK : LIGHT);
+  }
+  apply();
+  if(mq.addEventListener) mq.addEventListener('change', apply);
+})();
+</script>
+    
+
+<style id="mastercode-install-style">
+#mastercode-install{
+  position:fixed;
+  left:16px;
+  right:16px;
+  bottom:calc(16px + env(safe-area-inset-bottom, 0px));
+  z-index:2147483000;
+  width:auto;
+  max-width:460px;
+  margin:0 auto;
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+#mastercode-install[hidden],
+#mastercode-install-panel[hidden]{
+  display:none!important;
+}
+#mastercode-install-button{
+  width:100%;
+  min-height:54px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:11px;
+  padding:13px 20px;
+  border:1px solid rgba(255,224,155,.5);
+  border-radius:17px;
+  color:#17130a;
+  background:linear-gradient(135deg,#f5d88f 0%,#e8b84c 48%,#d6a23a 100%);
+  box-shadow:0 9px 30px rgba(0,0,0,.3),0 0 24px rgba(232,184,76,.16);
+  font-size:13px;
+  font-weight:850;
+  letter-spacing:.045em;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  transition:transform .15s ease,filter .15s ease;
+}
+#mastercode-install-button:active{
+  transform:scale(.98);
+  filter:brightness(.95);
+}
+#mastercode-install-button svg{
+  width:21px;
+  height:21px;
+  flex-shrink:0;
+}
+#mastercode-install-panel{
+  margin-bottom:10px;
+  padding:17px;
+  color:#f8fafc;
+  background:rgba(17,19,25,.97);
+  border:1px solid rgba(232,184,76,.3);
+  border-radius:18px;
+  box-shadow:0 14px 45px rgba(0,0,0,.48);
+  backdrop-filter:blur(18px);
+  -webkit-backdrop-filter:blur(18px);
+}
+#mastercode-install-panel .mc-install-title{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:12px;
+  color:#f3d58f;
+  font-size:14px;
+  font-weight:850;
+}
+#mastercode-install-panel .mc-install-close{
+  width:30px;
+  height:30px;
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:9px;
+  color:#cbd5e1;
+  background:rgba(255,255,255,.06);
+  font-size:19px;
+  cursor:pointer;
+}
+#mastercode-install-panel .mc-install-step{
+  display:flex;
+  align-items:flex-start;
+  gap:11px;
+  margin-top:12px;
+  color:#cbd5e1;
+  font-size:12px;
+  line-height:1.55;
+}
+#mastercode-install-panel .mc-install-number{
+  width:25px;
+  height:25px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex-shrink:0;
+  border-radius:8px;
+  color:#e8b84c;
+  background:rgba(232,184,76,.12);
+  font-size:11px;
+  font-weight:900;
+}
+#mastercode-install-panel strong{
+  color:#fff;
+}
+#mastercode-install-panel .mc-install-note{
+  margin-top:13px;
+  padding-top:11px;
+  border-top:1px solid rgba(255,255,255,.08);
+  color:#94a3b8;
+  font-size:10px;
+  line-height:1.5;
+}
+@media(min-width:700px){
+  #mastercode-install{
+    bottom:24px;
+  }
+}
+</style>
+
+<div id="mastercode-install" hidden>
+  <div id="mastercode-install-panel" hidden>
+    <div class="mc-install-title">
+      <span>Installer sur votre téléphone</span>
+      <button type="button" class="mc-install-close" id="mastercode-install-close" aria-label="Fermer">×</button>
+    </div>
+    <div class="mc-install-step">
+      <span class="mc-install-number">1</span>
+      <span>Appuyez sur le bouton <strong>Partager</strong> de Safari.</span>
+    </div>
+    <div class="mc-install-step">
+      <span class="mc-install-number">2</span>
+      <span>Faites défiler les options et choisissez <strong>Sur l’écran d’accueil</strong>.</span>
+    </div>
+    <div class="mc-install-step">
+      <span class="mc-install-number">3</span>
+      <span>Appuyez sur <strong>Ajouter</strong> pour installer l’application.</span>
+    </div>
+    <div class="mc-install-note">L’application sera accessible directement depuis l’écran d’accueil de votre iPhone.</div>
+  </div>
+
+  <button type="button" id="mastercode-install-button">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <rect x="4" y="3" width="16" height="18" rx="3"/>
+      <path d="M12 8v8M8.5 12.5 12 16l3.5-3.5"/>
+    </svg>
+    <span>INSTALLER L’APPLICATION</span>
+  </button>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  const root = document.getElementById('mastercode-install');
+  const button = document.getElementById('mastercode-install-button');
+  const panel = document.getElementById('mastercode-install-panel');
+  const close = document.getElementById('mastercode-install-close');
+
+  if(!root || !button || !panel) return;
+
+  const standalone = window.matchMedia('(display-mode: standalone)').matches ||
+    window.navigator.standalone === true;
+
+  if(standalone) return;
+
+  const ua = navigator.userAgent || '';
+  const isIOS = /iphone|ipad|ipod/i.test(ua) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  let deferredPrompt = null;
+
+  if(isIOS){
+    root.hidden = false;
+  }
+
+  window.addEventListener('beforeinstallprompt', function(event){
+    event.preventDefault();
+    deferredPrompt = event;
+    root.hidden = false;
+    panel.hidden = true;
+  });
+
+  button.addEventListener('click', async function(){
+    if(deferredPrompt){
+      const promptEvent = deferredPrompt;
+      deferredPrompt = null;
+
+      try{
+        await promptEvent.prompt();
+        const result = await promptEvent.userChoice;
+
+        if(result && result.outcome === 'accepted'){
+          root.hidden = true;
+          panel.hidden = true;
+        }
+      }catch(error){
+        console.error('Installation PWA:', error);
+      }
+      return;
+    }
+
+    if(isIOS){
+      panel.hidden = !panel.hidden;
+    }
+  });
+
+  if(close){
+    close.addEventListener('click', function(){
+      panel.hidden = true;
+    });
+  }
+
+  window.addEventListener('appinstalled', function(){
+    root.hidden = true;
+    panel.hidden = true;
+    deferredPrompt = null;
+  });
+})();
+</script>
+    
+</body>
+</html>
